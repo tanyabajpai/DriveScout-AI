@@ -30,11 +30,17 @@ Response: {"search_term": null, "file_type": null}
 """
 
 def parse_query(user_query: str) -> dict:
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError("OPENROUTER_API_KEY not set in environment")
+
     response = requests.post(
         url="https://openrouter.ai/api/v1/chat/completions",
         headers={
-            "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
-            "Content-Type": "application/json"
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://drivescout-ai.onrender.com",
+            "X-Title": "DriveScout AI"
         },
         json={
             "model": "meta-llama/llama-3.1-8b-instruct:free",
@@ -42,9 +48,17 @@ def parse_query(user_query: str) -> dict:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_query}
             ]
-        }
+        },
+        timeout=30
     )
-    text = response.json()["choices"][0]["message"]["content"].strip()
+
+    data = response.json()
+
+    # Raise full error if something went wrong
+    if "choices" not in data:
+        raise ValueError(f"OpenRouter error: {data}")
+
+    text = data["choices"][0]["message"]["content"].strip()
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.startswith("json"):

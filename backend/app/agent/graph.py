@@ -17,6 +17,8 @@ When a user asks to find files, respond with a JSON object with these fields:
 
 If the user is just chatting (not searching), set action to "chat" and reply normally.
 
+Always return valid JSON only. No explanation, no markdown.
+
 Examples:
 User: find pdf files
 Response: {"action": "search", "search_term": null, "file_type": "pdf", "message": "Let me find PDF files for you!"}
@@ -26,39 +28,42 @@ Response: {"action": "search", "search_term": "Invoice", "file_type": null, "mes
 
 User: hello
 Response: {"action": "chat", "search_term": null, "file_type": null, "message": "Hi! I can help you find files in your Google Drive. Try asking me to find PDFs, images, spreadsheets, or search by name!"}
-
-Always return valid JSON only.
 """
 
 def run_agent(user_message: str, chat_history: list = None) -> dict:
     if chat_history is None:
         chat_history = []
 
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return {"response": "Error: OPENROUTER_API_KEY not set in Render environment variables.", "files": []}
+
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-
-    for msg in chat_history[-6:]:  # keep last 6 messages for context
-        messages.append({
-            "role": msg["role"],
-            "content": msg["content"]
-        })
-
+    for msg in chat_history[-6:]:
+        messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": user_message})
 
     response = requests.post(
         url="https://openrouter.ai/api/v1/chat/completions",
         headers={
-            "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
-            "Content-Type": "application/json"
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://drivescout-ai.onrender.com",
+            "X-Title": "DriveScout AI"
         },
         json={
             "model": "meta-llama/llama-3.1-8b-instruct:free",
             "messages": messages
-        }
+        },
+        timeout=30
     )
 
-    text = response.json()["choices"][0]["message"]["content"].strip()
+    data = response.json()
 
-    # Clean markdown fences if present
+    if "choices" not in data:
+        return {"response": f"API Error: {data}", "files": []}
+
+    text = data["choices"][0]["message"]["content"].strip()
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.startswith("json"):
