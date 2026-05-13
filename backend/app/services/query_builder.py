@@ -1,15 +1,15 @@
-from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, SystemMessage
-from dotenv import load_dotenv
 import os
 import json
+from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage, SystemMessage
 
 load_dotenv()
 
 SYSTEM_PROMPT = """
 You are a Google Drive search assistant.
 Convert user requests into structured JSON.
-Return ONLY valid JSON, no explanation.
+Return ONLY valid JSON, no explanation, no markdown.
 
 Supported file types: pdf, image, video, spreadsheet, document
 
@@ -19,25 +19,20 @@ Rules:
 - Keep search terms short and clean.
 - Use null if no search term or file type is mentioned.
 
-Example:
+Examples:
 User: find pdf reports
-Response:
-{
-    "search_term": "Report",
-    "file_type": "pdf"
-}
+Response: {"search_term": "Report", "file_type": "pdf"}
 
 User: show all images
-Response:
-{
-    "search_term": null,
-    "file_type": "image"
-}
+Response: {"search_term": null, "file_type": "image"}
+
+User: find everything
+Response: {"search_term": null, "file_type": null}
 """
 
-llm = ChatGroq(
-    api_key=os.getenv("GROQ_API_KEY"),
-    model="llama-3.1-8b-instant"
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",
+    google_api_key=os.getenv("GEMINI_API_KEY")
 )
 
 def parse_query(user_query: str) -> dict:
@@ -47,7 +42,6 @@ def parse_query(user_query: str) -> dict:
     ]
     response = llm.invoke(messages)
     text = response.content.strip()
-    # Strip markdown code fences if present
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.startswith("json"):
