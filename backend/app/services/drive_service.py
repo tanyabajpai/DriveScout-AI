@@ -7,7 +7,7 @@ load_dotenv()
 
 FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
 
-SERVICE_ACCOUNT_FILE = "app/config/credentials.json"
+SERVICE_ACCOUNT_FILE = "/etc/secrets/credentials.json"
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
