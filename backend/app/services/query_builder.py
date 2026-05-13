@@ -43,7 +43,7 @@ def parse_query(user_query: str) -> dict:
             "X-Title": "DriveScout AI"
         },
         json={
-            "model": "meta-llama/llama-3.1-8b-instruct:free",
+            "model": "google/gemma-3-4b-it:free",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_query}

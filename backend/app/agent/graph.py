@@ -52,7 +52,7 @@ def run_agent(user_message: str, chat_history: list = None) -> dict:
             "X-Title": "DriveScout AI"
         },
         json={
-            "model": "meta-llama/llama-3.1-8b-instruct:free",
+            "model": "google/gemma-3-4b-it:free",
             "messages": messages
         },
         timeout=30
