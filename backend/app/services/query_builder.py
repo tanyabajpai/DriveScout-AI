@@ -31,7 +31,7 @@ Response: {"search_term": null, "file_type": null}
 """
 
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",
+    model="gemini-1.5-flash-latest",
     google_api_key=os.getenv("GEMINI_API_KEY")
 )
 
