@@ -52,7 +52,7 @@ def run_agent(user_message: str, chat_history: list = None) -> dict:
             "X-Title": "DriveScout AI"
         },
         json={
-            "model": "qwen/qwen3-8b:free",
+            "model": "openrouter/free",
             "messages": messages
         },
         timeout=30

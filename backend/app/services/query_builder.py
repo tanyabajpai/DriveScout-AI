@@ -43,7 +43,7 @@ def parse_query(user_query: str) -> dict:
             "X-Title": "DriveScout AI"
         },
         json={
-            "model": "qwen/qwen3-8b:free",
+            "model": "openrouter/free",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_query}
