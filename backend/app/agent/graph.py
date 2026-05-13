@@ -52,7 +52,7 @@ def run_agent(user_message: str, chat_history: list = None) -> dict:
             "X-Title": "DriveScout AI"
         },
         json={
-            "model": "mistralai/mistral-7b-instruct:free",
+            "model": "microsoft/phi-3-mini-128k-instruct:free",
             "messages": messages
         },
         timeout=30
