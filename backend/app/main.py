@@ -22,16 +22,15 @@ def get_files(search: str = None, file_type: str = None):
 @app.get("/ai-search")
 def ai_search(query: str):
 
-    parsed_query = parse_user_query(query)
+    try:
+        parsed_query = parse_query(query)
 
-    files = list_files(
-        search_term=parsed_query.get("search_term"),
-        file_type=parsed_query.get("file_type")
-    )
+        results = search_drive(parsed_query)
 
-    return {
-        "user_query": query,
-        "parsed_query": parsed_query,
-        "total_files": len(files),
-        "files": files
-    }
+        return {
+            "parsed_query": parsed_query,
+            "results": results
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
