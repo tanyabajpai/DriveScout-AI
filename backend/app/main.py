@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from app.services.drive_service import list_files
 from app.services.query_builder import parse_query
-from app.services.drive_service import search_drive
 
 app = FastAPI()
 
@@ -28,11 +27,14 @@ def ai_search(query: str):
     try:
         parsed_query = parse_query(query)
 
-        results = search_drive(parsed_query)
+        files = list_files(
+            search_term=parsed_query.get("search"),
+            file_type=parsed_query.get("file_type")
+        )
 
         return {
             "parsed_query": parsed_query,
-            "results": results
+            "results": files
         }
 
     except Exception as e:
