@@ -1,6 +1,8 @@
 import streamlit as st
-from utils.api_client import search_files
+import requests
+import os
 
+BACKEND_URL = os.getenv("BACKEND_URL", "https://drivescout-ai.onrender.com")
 
 st.set_page_config(
     page_title="DriveScout AI",
@@ -8,173 +10,93 @@ st.set_page_config(
     layout="centered"
 )
 
-
-# ---------------- SIDEBAR ---------------- #
-
+# --- Sidebar ---
 with st.sidebar:
+    st.title("📁 DriveScout AI")
+    st.write("Search your Google Drive using natural language.")
+    st.divider()
+    st.write("**Try asking:**")
+    st.write("- Find all PDF reports")
+    st.write("- Show me spreadsheets")
+    st.write("- Find images")
+    st.write("- Search for invoices")
+    st.divider()
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.messages = []
+        st.session_state.all_files = []
+        st.rerun()
 
-    st.header("📌 About")
-
-    st.write(
-        """
-        DriveScout AI helps search
-        Google Drive files using
-        natural language queries.
-        """
-    )
-
-    st.write("### Example Queries")
-
-    st.write("- find reports")
-    st.write("- show images")
-    st.write("- find spreadsheets")
-
-
-# ---------------- HELPERS ---------------- #
-
-def format_file_type(mime):
-
-    mime = mime.lower()
-
-    if "pdf" in mime:
-        return "PDF"
-
-    elif "image" in mime:
-        return "Image"
-
-    elif "spreadsheet" in mime:
-        return "Spreadsheet"
-
-    elif "video" in mime:
-        return "Video"
-
-    return "Document"
-
-
-# ---------------- UI ---------------- #
+# --- Session State ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "all_files" not in st.session_state:
+    st.session_state.all_files = []
 
 st.title("📁 DriveScout AI")
+st.caption("Your Google Drive search assistant. Ask me anything!")
 
-st.write(
-    "Search Google Drive files using natural language."
-)
-
-st.caption(
-    "Examples: find reports, show images, find spreadsheets"
-)
-
-user_input = st.text_input(
-    "What would you like to find?",
-    placeholder="Find pdf reports"
-)
-
-
-# ---------------- SEARCH ---------------- #
-
-if st.button("Search"):
-
-    if user_input:
-
-        with st.spinner("Searching Drive..."):
-
-            response = search_files(user_input)
-
-        parsed_query = response["parsed_query"]
-
-        search_term = parsed_query.get("search_term")
-        file_type = parsed_query.get("file_type")
-
-        # ---------- SUCCESS MESSAGE ---------- #
-
-        if search_term:
-
-            st.success(
-                f"Searching for "
-                f"{file_type or 'all'} files "
-                f"related to '{search_term}'"
-            )
-
-        else:
-
-            st.success(
-                f"Searching for "
-                f"{file_type or 'all'} files"
-            )
-
-        # ---------- FILE COUNT ---------- #
-
-        st.subheader(
-            f"Files Found: {response['total_files']}"
-        )
-
-        # ---------- FILE TYPE COUNTS ---------- #
-
-        pdf_count = 0
-        image_count = 0
-        spreadsheet_count = 0
-        video_count = 0
-
-        for file in response["files"]:
-
-            file_type_name = format_file_type(
-                file["mimeType"]
-            )
-
-            if file_type_name == "PDF":
-                pdf_count += 1
-
-            elif file_type_name == "Image":
-                image_count += 1
-
-            elif file_type_name == "Spreadsheet":
-                spreadsheet_count += 1
-
-            elif file_type_name == "Video":
-                video_count += 1
-
-        # ---------- SUMMARY ---------- #
-
-        with st.expander("📊 File Summary"):
-
-            st.write(f"📄 PDFs: {pdf_count}")
-
-            st.write(f"🖼 Images: {image_count}")
-
-            st.write(
-                f"📊 Spreadsheets: "
-                f"{spreadsheet_count}"
-            )
-
-            st.write(f"🎥 Videos: {video_count}")
-
-        # ---------- FILE RESULTS ---------- #
-
-        if response["files"]:
-
-            for file in response["files"]:
-
-                file_link = (
-                    f"https://drive.google.com/open?id={file['id']}"
-                )
-
+# --- Render chat history ---
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
+        if msg.get("files"):
+            for f in msg["files"]:
+                link = f"https://drive.google.com/open?id={f['id']}"
                 with st.container(border=True):
+                    st.write(f"📄 **{f['name']}**")
+                    st.caption(f"Type: {f['mimeType']}")
+                    st.link_button("🔗 Open in Drive", link)
 
-                    st.write(
-                        f"📄 Name: {file['name']}"
-                    )
+# --- Chat input ---
+user_input = st.chat_input("Ask me to find files in your Drive...")
 
-                    st.write(
-                        f"📁 Type: "
-                        f"{format_file_type(file['mimeType'])}"
-                    )
+if user_input:
+    # Show user message
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.write(user_input)
 
-                    st.link_button(
-                        "🔗 Open in Drive",
-                        file_link
-                    )
+    # Build history for backend (exclude files metadata)
+    history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in st.session_state.messages[:-1]
+    ]
 
-        else:
+    # Call backend
+    with st.chat_message("assistant"):
+        with st.spinner("Searching Drive..."):
+            try:
+                resp = requests.post(
+                    f"{BACKEND_URL}/chat",
+                    json={"message": user_input, "history": history},
+                    timeout=60
+                )
+                data = resp.json()
 
-            st.warning(
-                "No matching files found."
-            )
+                ai_text = data.get("response", "Sorry, something went wrong.")
+                files = data.get("files", [])
+
+                st.write(ai_text)
+
+                if files:
+                    for f in files:
+                        link = f"https://drive.google.com/open?id={f['id']}"
+                        with st.container(border=True):
+                            st.write(f"📄 **{f['name']}**")
+                            st.caption(f"Type: {f['mimeType']}")
+                            st.link_button("🔗 Open in Drive", link)
+
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": ai_text,
+                    "files": files
+                })
+
+            except Exception as e:
+                err = f"Connection error: {str(e)}"
+                st.error(err)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": err,
+                    "files": []
+                })
