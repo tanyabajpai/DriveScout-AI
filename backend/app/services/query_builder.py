@@ -43,7 +43,7 @@ def parse_query(user_query: str) -> dict:
             "X-Title": "DriveScout AI"
         },
         json={
-            "model": "microsoft/phi-3-mini-128k-instruct:free",
+            "model": "qwen/qwen3-8b:free",
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_query}
