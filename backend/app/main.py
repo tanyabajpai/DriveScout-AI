@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.services.drive_service import list_files
-from app.agent.graph import parse_user_query
+from app.services.query_builder import parse_query
+from app.services.drive_service import search_drive
 
 app = FastAPI()
 
@@ -12,12 +13,14 @@ def home():
 
 @app.get("/files")
 def get_files(search: str = None, file_type: str = None):
+
     files = list_files(search, file_type)
 
     return {
         "total_files": len(files),
         "files": files
     }
+
 
 @app.get("/ai-search")
 def ai_search(query: str):
