@@ -1,8 +1,7 @@
 import os
 import json
+import requests
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, SystemMessage
 
 load_dotenv()
 
@@ -30,18 +29,22 @@ User: find everything
 Response: {"search_term": null, "file_type": null}
 """
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash-latest",
-    google_api_key=os.getenv("GEMINI_API_KEY")
-)
-
 def parse_query(user_query: str) -> dict:
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=user_query)
-    ]
-    response = llm.invoke(messages)
-    text = response.content.strip()
+    response = requests.post(
+        url="https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "meta-llama/llama-3.1-8b-instruct:free",
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_query}
+            ]
+        }
+    )
+    text = response.json()["choices"][0]["message"]["content"].strip()
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.startswith("json"):

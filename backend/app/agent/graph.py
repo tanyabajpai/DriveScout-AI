@@ -1,59 +1,87 @@
 import os
+import json
+import requests
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from app.agent.drive_search_tool import drive_search_tool
+from app.services.drive_service import list_files
 
 load_dotenv()
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash-latest",
-    google_api_key=os.getenv("GEMINI_API_KEY")
-)
-
-llm_with_tools = llm.bind_tools([drive_search_tool])
-
-CHAT_SYSTEM_PROMPT = """
+SYSTEM_PROMPT = """
 You are DriveScout AI, a helpful assistant that finds files in Google Drive.
 
-When a user asks to find files, use the drive_search_tool with appropriate 
-search_term and file_type arguments.
+When a user asks to find files, respond with a JSON object with these fields:
+- "action": "search" or "chat"
+- "search_term": keyword to search (or null)
+- "file_type": one of pdf, image, video, spreadsheet, document (or null)
+- "message": friendly response to show the user
 
-Supported file_type values: pdf, image, video, spreadsheet, document
+If the user is just chatting (not searching), set action to "chat" and reply normally.
 
-After getting results, give a friendly summary.
-If no files found, tell the user politely.
+Examples:
+User: find pdf files
+Response: {"action": "search", "search_term": null, "file_type": "pdf", "message": "Let me find PDF files for you!"}
+
+User: find invoices
+Response: {"action": "search", "search_term": "Invoice", "file_type": null, "message": "Searching for invoices now!"}
+
+User: hello
+Response: {"action": "chat", "search_term": null, "file_type": null, "message": "Hi! I can help you find files in your Google Drive. Try asking me to find PDFs, images, spreadsheets, or search by name!"}
+
+Always return valid JSON only.
 """
 
 def run_agent(user_message: str, chat_history: list = None) -> dict:
     if chat_history is None:
         chat_history = []
 
-    messages = [SystemMessage(content=CHAT_SYSTEM_PROMPT)]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
-    for msg in chat_history:
-        if msg["role"] == "user":
-            messages.append(HumanMessage(content=msg["content"]))
-        else:
-            messages.append(AIMessage(content=msg["content"]))
+    for msg in chat_history[-6:]:  # keep last 6 messages for context
+        messages.append({
+            "role": msg["role"],
+            "content": msg["content"]
+        })
 
-    messages.append(HumanMessage(content=user_message))
+    messages.append({"role": "user", "content": user_message})
 
-    response = llm_with_tools.invoke(messages)
+    response = requests.post(
+        url="https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "meta-llama/llama-3.1-8b-instruct:free",
+            "messages": messages
+        }
+    )
+
+    text = response.json()["choices"][0]["message"]["content"].strip()
+
+    # Clean markdown fences if present
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    text = text.strip()
+
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        return {"response": text, "files": []}
 
     files = []
-
-    if response.tool_calls:
-        for tool_call in response.tool_calls:
-            if tool_call["name"] == "drive_search_tool":
-                files = drive_search_tool.invoke(tool_call["args"])
-
+    if parsed.get("action") == "search":
+        files = list_files(
+            search_term=parsed.get("search_term"),
+            file_type=parsed.get("file_type")
+        )
         if files:
-            file_names = "\n".join([f"- {f['name']}" for f in files[:10]])
-            summary = f"I found {len(files)} file(s) for you:\n{file_names}"
+            names = "\n".join([f"- {f['name']}" for f in files[:10]])
+            reply = f"{parsed.get('message', '')}\n\nFound {len(files)} file(s):\n{names}"
         else:
-            summary = "I couldn't find any matching files in your Google Drive."
+            reply = "I searched but couldn't find any matching files in your Google Drive."
+    else:
+        reply = parsed.get("message", text)
 
-        return {"response": summary, "files": files}
-
-    return {"response": response.content, "files": []}
+    return {"response": reply, "files": files}
